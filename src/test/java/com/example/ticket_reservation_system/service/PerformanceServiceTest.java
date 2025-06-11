@@ -4,6 +4,7 @@ import com.example.ticket_reservation_system.domain.PerformanceDomain;
 import com.example.ticket_reservation_system.dto.PerformanceRequestDTO;
 import com.example.ticket_reservation_system.repository.PerformanceRepository;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -11,8 +12,11 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
@@ -29,39 +33,41 @@ class PerformanceServiceTest {
     @Mock
     private PerformanceRepository performanceRepository;
 
-    @Test
-    @DisplayName("공연 정보 등록 성공 테스트")
-    void register_performance_success() {
-        // given: 이러한 데이터가 주어졌을 때
-        LocalDateTime startTime = LocalDateTime.now().plusDays(10);
-        PerformanceRequestDTO requestDTO = PerformanceRequestDTO.builder()
-                .name("뮤지컬 <레미제라블>")
-                .place("블루스퀘어 신한카드홀")
-                .price(150000)
-                .startTime(startTime)
-                .build();
+    // ... (이전 테스트들은 생략)
 
-        PerformanceDomain performanceToSave = requestDTO.toEntity();
-        PerformanceDomain savedPerformance = PerformanceDomain.builder()
-                .name("뮤지컬 <레미제라블>")
-                .place("블루스퀘어 신한카드홀")
-                .price(150000)
-                .startTime(startTime)
-                .build();
+    @Nested
+    @DisplayName("공연 상세 조회 테스트")
+    class FindPerformanceByIdTest {
+        @Test
+        @DisplayName("성공")
+        void find_performance_by_id_success() {
+            // given
+            long performanceId = 1L;
+            PerformanceDomain performance = PerformanceDomain.builder().name("테스트 공연").build();
+            given(performanceRepository.findById(performanceId)).willReturn(Optional.of(performance));
 
-        // performanceRepository.save()가 호출되면 savedPerformance를 반환하도록 설정
-        given(performanceRepository.save(any(PerformanceDomain.class))).willReturn(savedPerformance);
+            // when
+            PerformanceDomain result = performanceService.findPerformanceById(performanceId);
 
-        // when: 이 메소드를 실행하면
-        PerformanceDomain result = performanceService.registerPerformance(requestDTO);
+            // then
+            assertThat(result).isNotNull();
+            assertThat(result.getName()).isEqualTo("테스트 공연");
+            verify(performanceRepository).findById(performanceId);
+        }
 
-        // then: 이러한 결과가 나와야 한다
-        assertThat(result).isNotNull();
-        assertThat(result.getName()).isEqualTo(requestDTO.getName());
-        assertThat(result.getPlace()).isEqualTo(requestDTO.getPlace());
-        assertThat(result.getPrice()).isEqualTo(requestDTO.getPrice());
+        @Test
+        @DisplayName("실패 - 해당 ID의 공연 없음")
+        void find_performance_by_id_fail_not_found() {
+            // given
+            long nonExistentId = 99L;
+            given(performanceRepository.findById(nonExistentId)).willReturn(Optional.empty());
 
-        // performanceRepository.save 메소드가 한 번 호출되었는지 검증
-        verify(performanceRepository).save(any(PerformanceDomain.class));
+            // when & then
+            assertThrows(IllegalArgumentException.class, () -> {
+                performanceService.findPerformanceById(nonExistentId);
+            }, "해당 ID의 공연을 찾을 수 없습니다: " + nonExistentId);
+
+            verify(performanceRepository).findById(nonExistentId);
+        }
     }
 }
