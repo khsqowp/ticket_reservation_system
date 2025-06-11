@@ -1,6 +1,8 @@
 package com.example.ticket_reservation_system.controller;
 
 import com.example.ticket_reservation_system.domain.UserDomain;
+import com.example.ticket_reservation_system.dto.UserLoginRequestDTO;
+import com.example.ticket_reservation_system.dto.UserLoginResponseDTO;
 import com.example.ticket_reservation_system.dto.UserSignupRequestDTO;
 import com.example.ticket_reservation_system.dto.UserSignupResponseDTO;
 import com.example.ticket_reservation_system.service.UserService;
@@ -33,5 +35,18 @@ public class UserController {
         UserDomain savedUser = userService.signup(requestDTO);
         UserSignupResponseDTO responseDTO = UserSignupResponseDTO.from(savedUser);
         return ResponseEntity.status(HttpStatus.CREATED).body(responseDTO);
+    }
+
+    /**
+     * 사용자 로그인 API
+     * @param requestDTO 로그인 요청 DTO
+     * @return 로그인 성공 메시지, 임시 토큰과 200 OK 상태 코드
+     */
+    @PostMapping("/login")
+    public ResponseEntity<UserLoginResponseDTO> login(@Valid @RequestBody UserLoginRequestDTO requestDTO) {
+        UserDomain loginUser = userService.login(requestDTO);
+        String simpleToken = "temp-token-for-" + loginUser.getEmail();
+        UserLoginResponseDTO responseDTO = new UserLoginResponseDTO("로그인에 성공했습니다.", simpleToken);
+        return ResponseEntity.ok(responseDTO);
     }
 }

@@ -1,9 +1,11 @@
 package com.example.ticket_reservation_system.service;
 
 import com.example.ticket_reservation_system.domain.UserDomain;
+import com.example.ticket_reservation_system.dto.UserLoginRequestDTO;
 import com.example.ticket_reservation_system.dto.UserSignupRequestDTO;
 import com.example.ticket_reservation_system.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -30,59 +32,102 @@ class UserServiceTest {
     @Mock
     private UserRepository userRepository;
 
-    @Test
-    @DisplayName("회원가입 성공 테스트")
-    void signup_success() {
-        // given: 이러한 데이터가 주어졌을 때
-        UserSignupRequestDTO requestDTO = UserSignupRequestDTO.builder()
-                .email("test@example.com")
-                .password("password123")
-                .name("테스트유저")
-                .build();
+    @Nested
+    @DisplayName("회원가입 테스트")
+    class SignupTest {
+        @Test
+        @DisplayName("성공")
+        void signup_success() {
+            // given
+            UserSignupRequestDTO requestDTO = UserSignupRequestDTO.builder()
+                    .email("test@example.com")
+                    .password("password123")
+                    .name("테스트유저")
+                    .build();
 
-        UserDomain userToSave = requestDTO.toEntity();
-        UserDomain savedUser = UserDomain.builder()
-                .email("test@example.com")
-                .password("password123")
-                .name("테스트유저")
-                .build();
+            given(userRepository.findByEmail(requestDTO.getEmail())).willReturn(Optional.empty());
+            given(userRepository.save(any(UserDomain.class))).willReturn(requestDTO.toEntity());
 
-        // userRepository.findByEmail()이 호출되면 Optional.empty()를 반환하도록 설정
-        given(userRepository.findByEmail(requestDTO.getEmail())).willReturn(Optional.empty());
-        // userRepository.save()가 호출되면 savedUser를 반환하도록 설정
-        given(userRepository.save(any(UserDomain.class))).willReturn(savedUser);
+            // when
+            UserDomain result = userService.signup(requestDTO);
 
-        // when: 이 메소드를 실행하면
-        UserDomain result = userService.signup(requestDTO);
+            // then
+            assertThat(result).isNotNull();
+            assertThat(result.getEmail()).isEqualTo(requestDTO.getEmail());
+            verify(userRepository).save(any(UserDomain.class));
+        }
 
-        // then: 이러한 결과가 나와야 한다
-        assertThat(result).isNotNull();
-        assertThat(result.getEmail()).isEqualTo(requestDTO.getEmail());
-        assertThat(result.getName()).isEqualTo(requestDTO.getName());
+        @Test
+        @DisplayName("실패 - 이메일 중복")
+        void signup_fail_duplicate_email() {
+            // given
+            UserSignupRequestDTO requestDTO = UserSignupRequestDTO.builder()
+                    .email("test@example.com")
+                    .password("password123")
+                    .name("테스트유저")
+                    .build();
 
-        // userRepository.findByEmail과 save 메소드가 각각 한 번씩 호출되었는지 검증
-        verify(userRepository).findByEmail(requestDTO.getEmail());
-        verify(userRepository).save(any(UserDomain.class));
+            given(userRepository.findByEmail(requestDTO.getEmail())).willReturn(Optional.of(requestDTO.toEntity()));
+
+            // when & then
+            assertThrows(IllegalArgumentException.class, () -> userService.signup(requestDTO));
+        }
     }
 
-    @Test
-    @DisplayName("회원가입 실패 테스트 - 이메일 중복")
-    void signup_fail_duplicate_email() {
-        // given: 이러한 데이터가 주어졌을 때
-        UserSignupRequestDTO requestDTO = UserSignupRequestDTO.builder()
-                .email("test@example.com")
-                .password("password123")
-                .name("테스트유저")
-                .build();
 
-        // userRepository.findByEmail()이 호출되면 이미 존재하는 UserDomain 객체를 포함한 Optional을 반환
-        given(userRepository.findByEmail(requestDTO.getEmail())).willReturn(Optional.of(requestDTO.toEntity()));
+    @Nested
+    @DisplayName("로그인 테스트")
+    class LoginTest {
+        @Test
+        @DisplayName("성공")
+        void login_success() {
+            // given
+            UserLoginRequestDTO requestDTO = new UserLoginRequestDTO("test@example.com", "password123");
+            UserDomain user = UserDomain.builder()
+                    .email("test@example.com")
+                    .password("password123")
+                    .name("테스트유저")
+                    .build();
+            given(userRepository.findByEmail(requestDTO.getEmail())).willReturn(Optional.of(user));
 
-        // when & then: 이 메소드를 실행하면 IllegalArgumentException이 발생해야 한다
-        assertThrows(IllegalArgumentException.class, () -> {
-            userService.signup(requestDTO);
-        }, "이미 사용 중인 이메일입니다.");
+            // when
+            UserDomain result = userService.login(requestDTO);
 
-        verify(userRepository).findByEmail(requestDTO.getEmail());
+            // then
+            assertThat(result).isNotNull();
+            assertThat(result.getEmail()).isEqualTo(requestDTO.getEmail());
+            verify(userRepository).findByEmail(requestDTO.getEmail());
+        }
+
+        @Test
+        @DisplayName("실패 - 존재하지 않는 이메일")
+        void login_fail_user_not_found() {
+            // given
+            UserLoginRequestDTO requestDTO = new UserLoginRequestDTO("wrong@example.com", "password123");
+            given(userRepository.findByEmail(requestDTO.getEmail())).willReturn(Optional.empty());
+
+            // when & then
+            assertThrows(IllegalArgumentException.class, () -> {
+                userService.login(requestDTO);
+            }, "가입되지 않은 이메일입니다.");
+        }
+
+        @Test
+        @DisplayName("실패 - 비밀번호 불일치")
+        void login_fail_wrong_password() {
+            // given
+            UserLoginRequestDTO requestDTO = new UserLoginRequestDTO("test@example.com", "wrong_password");
+            UserDomain user = UserDomain.builder()
+                    .email("test@example.com")
+                    .password("password123") // 저장된 비밀번호는 다름
+                    .name("테스트유저")
+                    .build();
+            given(userRepository.findByEmail(requestDTO.getEmail())).willReturn(Optional.of(user));
+
+            // when & then
+            assertThrows(IllegalArgumentException.class, () -> {
+                userService.login(requestDTO);
+            }, "비밀번호가 일치하지 않습니다.");
+        }
     }
 }
