@@ -1,18 +1,20 @@
 package com.example.ticket_reservation_system.dto;
 
 import com.example.ticket_reservation_system.domain.UserDomain;
+import com.example.ticket_reservation_system.domain.UserRoleEnum;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
-/**
- * 사용자 회원가입 요청을 위한 DTO (Data Transfer Object)
- */
 @Getter
 @NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class UserSignupRequestDTO {
 
     @NotBlank(message = "이메일은 필수 입력 항목입니다.")
@@ -26,22 +28,17 @@ public class UserSignupRequestDTO {
     @NotBlank(message = "이름은 필수 입력 항목입니다.")
     private String name;
 
-    @Builder
-    public UserSignupRequestDTO(String email, String password, String name) {
-        this.email = email;
-        this.password = password;
-        this.name = name;
-    }
+    @Builder.Default // [수정] Builder 기본값 설정을 위해 추가
+    private boolean admin = false;
+    @Builder.Default // [수정] Builder 기본값 설정을 위해 추가
+    private String adminToken = "";
 
-    /**
-     * DTO를 UserDomain 엔티티로 변환하는 메소드
-     * @return UserDomain
-     */
-    public UserDomain toEntity() {
+    public UserDomain toEntity(PasswordEncoder passwordEncoder, UserRoleEnum role) {
         return UserDomain.builder()
                 .email(this.email)
-                .password(this.password) // 실제 프로젝트에서는 비밀번호 암호화가 필요합니다.
+                .password(passwordEncoder.encode(this.password))
                 .name(this.name)
+                .role(role)
                 .build();
     }
 }

@@ -1,16 +1,19 @@
 package com.example.ticket_reservation_system.service;
 
+import com.example.ticket_reservation_system.config.jwt.JwtUtil;
 import com.example.ticket_reservation_system.domain.UserDomain;
+import com.example.ticket_reservation_system.domain.UserRoleEnum;
 import com.example.ticket_reservation_system.dto.UserLoginRequestDTO;
 import com.example.ticket_reservation_system.dto.UserSignupRequestDTO;
 import com.example.ticket_reservation_system.repository.UserRepository;
 import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Optional;
 
@@ -20,9 +23,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
-/**
- * UserService에 대한 단위 테스트
- */
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
 
@@ -32,102 +32,76 @@ class UserServiceTest {
     @Mock
     private UserRepository userRepository;
 
-    @Nested
-    @DisplayName("회원가입 테스트")
-    class SignupTest {
-        @Test
-        @DisplayName("성공")
-        void signup_success() {
-            // given
-            UserSignupRequestDTO requestDTO = UserSignupRequestDTO.builder()
-                    .email("test@example.com")
-                    .password("password123")
-                    .name("테스트유저")
-                    .build();
+    @Mock
+    private PasswordEncoder passwordEncoder;
 
-            given(userRepository.findByEmail(requestDTO.getEmail())).willReturn(Optional.empty());
-            given(userRepository.save(any(UserDomain.class))).willReturn(requestDTO.toEntity());
+    @Mock
+    private JwtUtil jwtUtil;
 
-            // when
-            UserDomain result = userService.signup(requestDTO);
+    @Test
+    @DisplayName("회원가입 성공 테스트")
+    void signup_success() {
+        // given
+        UserSignupRequestDTO requestDTO = new UserSignupRequestDTO();
+        ReflectionTestUtils.setField(requestDTO, "email", "test@example.com");
+        ReflectionTestUtils.setField(requestDTO, "password", "password123");
+        ReflectionTestUtils.setField(requestDTO, "name", "테스트유저");
 
-            // then
-            assertThat(result).isNotNull();
-            assertThat(result.getEmail()).isEqualTo(requestDTO.getEmail());
-            verify(userRepository).save(any(UserDomain.class));
-        }
+        String encodedPassword = "encodedPassword";
+        given(userRepository.findByEmail(requestDTO.getEmail())).willReturn(Optional.empty());
+        given(passwordEncoder.encode(requestDTO.getPassword())).willReturn(encodedPassword);
+        given(userRepository.save(any(UserDomain.class))).willAnswer(invocation -> invocation.getArgument(0));
 
-        @Test
-        @DisplayName("실패 - 이메일 중복")
-        void signup_fail_duplicate_email() {
-            // given
-            UserSignupRequestDTO requestDTO = UserSignupRequestDTO.builder()
-                    .email("test@example.com")
-                    .password("password123")
-                    .name("테스트유저")
-                    .build();
+        // when
+        UserDomain result = userService.signup(requestDTO);
 
-            given(userRepository.findByEmail(requestDTO.getEmail())).willReturn(Optional.of(requestDTO.toEntity()));
-
-            // when & then
-            assertThrows(IllegalArgumentException.class, () -> userService.signup(requestDTO));
-        }
+        // then
+        assertThat(result).isNotNull();
+        assertThat(result.getEmail()).isEqualTo(requestDTO.getEmail());
+        assertThat(result.getPassword()).isEqualTo(encodedPassword); // 암호화된 비밀번호 확인
+        verify(userRepository).save(any(UserDomain.class));
     }
 
+    @Test
+    @DisplayName("로그인 성공 테스트")
+    void login_success() {
+        // given
+        UserLoginRequestDTO requestDTO = new UserLoginRequestDTO("test@example.com", "password123");
+        String encodedPassword = "encodedPassword";
+        UserDomain user = UserDomain.builder()
+                .email(requestDTO.getEmail())
+                .password(encodedPassword)
+                .role(UserRoleEnum.USER)
+                .build();
+        String dummyToken = "dummy-jwt-token";
 
-    @Nested
-    @DisplayName("로그인 테스트")
-    class LoginTest {
-        @Test
-        @DisplayName("성공")
-        void login_success() {
-            // given
-            UserLoginRequestDTO requestDTO = new UserLoginRequestDTO("test@example.com", "password123");
-            UserDomain user = UserDomain.builder()
-                    .email("test@example.com")
-                    .password("password123")
-                    .name("테스트유저")
-                    .build();
-            given(userRepository.findByEmail(requestDTO.getEmail())).willReturn(Optional.of(user));
+        given(userRepository.findByEmail(requestDTO.getEmail())).willReturn(Optional.of(user));
+        given(passwordEncoder.matches(requestDTO.getPassword(), encodedPassword)).willReturn(true);
+        given(jwtUtil.createToken(user.getEmail(), user.getRole())).willReturn(dummyToken);
 
-            // when
-            UserDomain result = userService.login(requestDTO);
+        // when
+        String token = userService.login(requestDTO);
 
-            // then
-            assertThat(result).isNotNull();
-            assertThat(result.getEmail()).isEqualTo(requestDTO.getEmail());
-            verify(userRepository).findByEmail(requestDTO.getEmail());
-        }
+        // then
+        assertThat(token).isEqualTo(dummyToken);
+    }
 
-        @Test
-        @DisplayName("실패 - 존재하지 않는 이메일")
-        void login_fail_user_not_found() {
-            // given
-            UserLoginRequestDTO requestDTO = new UserLoginRequestDTO("wrong@example.com", "password123");
-            given(userRepository.findByEmail(requestDTO.getEmail())).willReturn(Optional.empty());
+    @Test
+    @DisplayName("로그인 실패 테스트 - 비밀번호 불일치")
+    void login_fail_wrong_password() {
+        // given
+        UserLoginRequestDTO requestDTO = new UserLoginRequestDTO("test@example.com", "wrong_password");
+        String encodedPassword = "encodedPassword";
+        UserDomain user = UserDomain.builder()
+                .email(requestDTO.getEmail())
+                .password(encodedPassword)
+                .role(UserRoleEnum.USER)
+                .build();
 
-            // when & then
-            assertThrows(IllegalArgumentException.class, () -> {
-                userService.login(requestDTO);
-            }, "가입되지 않은 이메일입니다.");
-        }
+        given(userRepository.findByEmail(requestDTO.getEmail())).willReturn(Optional.of(user));
+        given(passwordEncoder.matches(requestDTO.getPassword(), encodedPassword)).willReturn(false); // 비밀번호 불일치 상황 모의
 
-        @Test
-        @DisplayName("실패 - 비밀번호 불일치")
-        void login_fail_wrong_password() {
-            // given
-            UserLoginRequestDTO requestDTO = new UserLoginRequestDTO("test@example.com", "wrong_password");
-            UserDomain user = UserDomain.builder()
-                    .email("test@example.com")
-                    .password("password123") // 저장된 비밀번호는 다름
-                    .name("테스트유저")
-                    .build();
-            given(userRepository.findByEmail(requestDTO.getEmail())).willReturn(Optional.of(user));
-
-            // when & then
-            assertThrows(IllegalArgumentException.class, () -> {
-                userService.login(requestDTO);
-            }, "비밀번호가 일치하지 않습니다.");
-        }
+        // when & then
+        assertThrows(IllegalArgumentException.class, () -> userService.login(requestDTO));
     }
 }

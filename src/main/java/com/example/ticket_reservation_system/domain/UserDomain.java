@@ -9,13 +9,9 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
-/**
- * 사용자 정보를 담는 도메인 클래스 (Entity)
- * 데이터베이스의 'users' 테이블과 매핑됩니다.
- */
 @Entity
 @Getter
-@NoArgsConstructor(access = AccessLevel.PROTECTED) // JPA는 기본 생성자를 필요로 합니다. protected로 설정하여 안전성을 높입니다.
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Table(name = "users")
 public class UserDomain {
 
@@ -33,14 +29,19 @@ public class UserDomain {
     @Column(nullable = false, length = 50)
     private String name;
 
-    @CreationTimestamp // 엔티티가 생성될 때의 시간이 자동으로 저장됩니다.
+    @Column(nullable = false)
+    @Enumerated(value = EnumType.STRING)
+    private UserRoleEnum role;
+
+    @CreationTimestamp
     @Column(name = "created_at", updatable = false)
     private LocalDateTime createdAt;
 
     @Builder
-    public UserDomain(String email, String password, String name) {
+    public UserDomain(String email, String password, String name, UserRoleEnum role) {
         this.email = email;
         this.password = password;
         this.name = name;
+        this.role = role;
     }
 }
