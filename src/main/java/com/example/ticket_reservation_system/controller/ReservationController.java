@@ -23,11 +23,6 @@ public class ReservationController {
 
     private final ReservationService reservationService;
 
-    /**
-     * 티켓을 예매하는 API
-     * @param requestDTO 예매 요청 DTO (userId, seatId)
-     * @return 생성된 예매 정보와 201 Created 상태 코드
-     */
     @PostMapping
     public ResponseEntity<ReservationResponseDTO> createReservation(@Valid @RequestBody ReservationRequestDTO requestDTO) {
         ReservationDomain savedReservation = reservationService.reserveTicket(requestDTO);
@@ -35,11 +30,6 @@ public class ReservationController {
         return ResponseEntity.status(HttpStatus.CREATED).body(responseDTO);
     }
 
-    /**
-     * 특정 사용자의 모든 예매 내역을 조회하는 API
-     * @param userId 조회할 사용자의 ID
-     * @return 해당 사용자의 예매 내역 리스트와 200 OK 상태 코드
-     */
     @GetMapping("/my-reservations/{userId}")
     public ResponseEntity<List<ReservationResponseDTO>> getMyReservations(@PathVariable Long userId) {
         List<ReservationDomain> myReservations = reservationService.findMyReservations(userId);
@@ -47,5 +37,16 @@ public class ReservationController {
                 .map(ReservationResponseDTO::from)
                 .collect(Collectors.toList());
         return ResponseEntity.ok(responseDTOs);
+    }
+
+    /**
+     * 예매를 취소하는 API
+     * @param reservationId 취소할 예매의 ID
+     * @return 성공 시 204 No Content 상태 코드
+     */
+    @DeleteMapping("/{reservationId}")
+    public ResponseEntity<Void> cancelReservation(@PathVariable Long reservationId) {
+        reservationService.cancelReservation(reservationId);
+        return ResponseEntity.noContent().build();
     }
 }

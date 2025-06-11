@@ -4,7 +4,6 @@ import com.example.ticket_reservation_system.domain.PerformanceDomain;
 import com.example.ticket_reservation_system.domain.ReservationDomain;
 import com.example.ticket_reservation_system.domain.SeatDomain;
 import com.example.ticket_reservation_system.domain.UserDomain;
-import com.example.ticket_reservation_system.dto.ReservationRequestDTO;
 import com.example.ticket_reservation_system.repository.ReservationRepository;
 import com.example.ticket_reservation_system.repository.SeatRepository;
 import com.example.ticket_reservation_system.repository.UserRepository;
@@ -21,7 +20,6 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 
@@ -39,44 +37,43 @@ class ReservationServiceTest {
     @Mock
     private SeatRepository seatRepository;
 
-    // ... 이전 테스트 생략 ...
+    // ... (이전 테스트들은 생략) ...
 
     @Nested
-    @DisplayName("내 예매 내역 조회 테스트")
-    class FindMyReservationsTest {
+    @DisplayName("예매 취소 테스트")
+    class CancelReservationTest {
+
         @Test
         @DisplayName("성공")
-        void find_my_reservations_success() {
+        void cancel_reservation_success() {
             // given
-            long userId = 1L;
-            UserDomain user = UserDomain.builder().build();
-            ReservationDomain reservation1 = ReservationDomain.builder().build();
-            ReservationDomain reservation2 = ReservationDomain.builder().build();
-            List<ReservationDomain> reservations = List.of(reservation1, reservation2);
+            long reservationId = 1L;
+            PerformanceDomain performance = PerformanceDomain.builder().build();
+            SeatDomain seat = new SeatDomain(performance, "R", "A1");
+            seat.reserve(); // 좌석이 예약된 상태
+            ReservationDomain reservation = ReservationDomain.builder().seat(seat).build();
 
-            given(userRepository.findById(userId)).willReturn(Optional.of(user));
-            given(reservationRepository.findAllByUser(user)).willReturn(reservations);
+            given(reservationRepository.findById(reservationId)).willReturn(Optional.of(reservation));
 
             // when
-            List<ReservationDomain> result = reservationService.findMyReservations(userId);
+            reservationService.cancelReservation(reservationId);
 
             // then
-            assertThat(result).isNotNull();
-            assertThat(result.size()).isEqualTo(2);
-            verify(userRepository).findById(userId);
-            verify(reservationRepository).findAllByUser(user);
+            assertThat(seat.isReserved()).isFalse(); // 좌석의 예약 상태가 false로 변경되었는지 확인
+            verify(reservationRepository).findById(reservationId);
+            verify(reservationRepository).delete(reservation); // delete 메소드가 호출되었는지 확인
         }
 
         @Test
-        @DisplayName("실패 - 사용자를 찾을 수 없음")
-        void find_my_reservations_fail_user_not_found() {
+        @DisplayName("실패 - 존재하지 않는 예매 ID")
+        void cancel_reservation_fail_not_found() {
             // given
-            long nonExistentUserId = 99L;
-            given(userRepository.findById(nonExistentUserId)).willReturn(Optional.empty());
+            long nonExistentReservationId = 99L;
+            given(reservationRepository.findById(nonExistentReservationId)).willReturn(Optional.empty());
 
             // when & then
             assertThrows(IllegalArgumentException.class, () -> {
-                reservationService.findMyReservations(nonExistentUserId);
+                reservationService.cancelReservation(nonExistentReservationId);
             });
         }
     }

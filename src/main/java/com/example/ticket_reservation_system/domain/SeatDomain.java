@@ -50,4 +50,14 @@ public class SeatDomain {
         }
         this.isReserved = true;
     }
+
+    /**
+     * 좌석의 예약을 취소하고, 예약 가능 상태로 되돌리는 메소드
+     */
+    public void cancel() {
+        if (!this.isReserved) {
+            throw new IllegalStateException("예약되지 않은 좌석은 취소할 수 없습니다.");
+        }
+        this.isReserved = false;
+    }
 }

@@ -24,11 +24,6 @@ public class ReservationService {
     private final UserRepository userRepository;
     private final SeatRepository seatRepository;
 
-    /**
-     * 티켓을 예매합니다.
-     * @param requestDTO 예매 요청 정보
-     * @return 생성된 ReservationDomain 객체
-     */
     @Transactional
     public ReservationDomain reserveTicket(ReservationRequestDTO requestDTO) {
         UserDomain user = userRepository.findById(requestDTO.getUserId())
@@ -48,15 +43,28 @@ public class ReservationService {
         return reservationRepository.save(reservation);
     }
 
-    /**
-     * 특정 사용자의 모든 예매 내역을 조회합니다.
-     * @param userId 조회할 사용자의 ID
-     * @return 해당 사용자의 예매 내역 리스트
-     */
     public List<ReservationDomain> findMyReservations(Long userId) {
         UserDomain user = userRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다. ID: " + userId));
 
         return reservationRepository.findAllByUser(user);
+    }
+
+    /**
+     * 예매를 취소합니다.
+     * @param reservationId 취소할 예매의 ID
+     */
+    @Transactional
+    public void cancelReservation(Long reservationId) {
+        // 1. 취소할 예매 내역을 조회합니다. 없으면 예외를 발생시킵니다.
+        ReservationDomain reservation = reservationRepository.findById(reservationId)
+                .orElseThrow(() -> new IllegalArgumentException("예매 내역을 찾을 수 없습니다. ID: " + reservationId));
+
+        // 2. 예매된 좌석의 상태를 '예약 가능'으로 되돌립니다.
+        SeatDomain seat = reservation.getSeat();
+        seat.cancel();
+
+        // 3. 예매 내역을 삭제합니다.
+        reservationRepository.delete(reservation);
     }
 }
