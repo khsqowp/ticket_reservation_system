@@ -23,23 +23,38 @@ public class ReservationService {
     private final ReservationRepository reservationRepository;
     private final UserRepository userRepository;
     private final SeatRepository seatRepository;
+    private final WaitingQueueService waitingQueueService; // 대기열 서비스 주입
 
     @Transactional
     public ReservationDomain reserveTicket(ReservationRequestDTO requestDTO) {
+        // 1. 사용자 정보 조회
         UserDomain user = userRepository.findById(requestDTO.getUserId())
                 .orElseThrow(() -> new IllegalArgumentException("사용자를 찾을 수 없습니다. ID: " + requestDTO.getUserId()));
 
+        // 2. 좌석 정보 조회 시 비관적 락을 사용합니다.
         SeatDomain seat = seatRepository.findByIdWithPessimisticLock(requestDTO.getSeatId())
                 .orElseThrow(() -> new IllegalArgumentException("좌석을 찾을 수 없습니다. ID: " + requestDTO.getSeatId()));
 
+        // 3. [추가] 대기열에서 허용된 사용자인지 확인
+        Long performanceId = seat.getPerformance().getId();
+        if (!waitingQueueService.isAllowed(performanceId, user.getId().toString())) {
+            throw new IllegalStateException("예매 가능 순서가 아닙니다. 대기열을 확인해주세요.");
+        }
+
+        // 4. 좌석의 예약 상태를 변경. 이미 예약된 경우 IllegalStateException 발생
         seat.reserve();
 
+        // 5. 예매 정보 생성
         ReservationDomain reservation = ReservationDomain.builder()
                 .user(user)
                 .performance(seat.getPerformance())
                 .seat(seat)
                 .build();
 
+        // 6. 예매 완료 후, 허용 목록에서 최종적으로 제거
+        waitingQueueService.markAsProcessed(performanceId, user.getId().toString());
+
+        // 7. 예매 정보 저장 후 반환
         return reservationRepository.save(reservation);
     }
 
@@ -50,21 +65,14 @@ public class ReservationService {
         return reservationRepository.findAllByUser(user);
     }
 
-    /**
-     * 예매를 취소합니다.
-     * @param reservationId 취소할 예매의 ID
-     */
     @Transactional
     public void cancelReservation(Long reservationId) {
-        // 1. 취소할 예매 내역을 조회합니다. 없으면 예외를 발생시킵니다.
         ReservationDomain reservation = reservationRepository.findById(reservationId)
                 .orElseThrow(() -> new IllegalArgumentException("예매 내역을 찾을 수 없습니다. ID: " + reservationId));
 
-        // 2. 예매된 좌석의 상태를 '예약 가능'으로 되돌립니다.
         SeatDomain seat = reservation.getSeat();
         seat.cancel();
 
-        // 3. 예매 내역을 삭제합니다.
         reservationRepository.delete(reservation);
     }
 }
