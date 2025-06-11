@@ -8,10 +8,10 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 예매와 관련된 HTTP 요청을 처리하는 컨트롤러
@@ -33,5 +33,19 @@ public class ReservationController {
         ReservationDomain savedReservation = reservationService.reserveTicket(requestDTO);
         ReservationResponseDTO responseDTO = ReservationResponseDTO.from(savedReservation);
         return ResponseEntity.status(HttpStatus.CREATED).body(responseDTO);
+    }
+
+    /**
+     * 특정 사용자의 모든 예매 내역을 조회하는 API
+     * @param userId 조회할 사용자의 ID
+     * @return 해당 사용자의 예매 내역 리스트와 200 OK 상태 코드
+     */
+    @GetMapping("/my-reservations/{userId}")
+    public ResponseEntity<List<ReservationResponseDTO>> getMyReservations(@PathVariable Long userId) {
+        List<ReservationDomain> myReservations = reservationService.findMyReservations(userId);
+        List<ReservationResponseDTO> responseDTOs = myReservations.stream()
+                .map(ReservationResponseDTO::from)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(responseDTOs);
     }
 }
