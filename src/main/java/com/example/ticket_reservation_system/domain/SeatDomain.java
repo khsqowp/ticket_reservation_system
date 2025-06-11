@@ -40,4 +40,14 @@ public class SeatDomain {
         this.grade = grade;
         this.seatNumber = seatNumber;
     }
+
+    /**
+     * 좌석을 예약 상태로 변경하는 메소드
+     */
+    public void reserve() {
+        if (this.isReserved) {
+            throw new IllegalStateException("이미 예약된 좌석입니다.");
+        }
+        this.isReserved = true;
+    }
 }

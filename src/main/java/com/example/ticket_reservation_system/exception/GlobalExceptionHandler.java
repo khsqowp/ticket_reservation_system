@@ -9,21 +9,30 @@ import java.util.Map;
 
 /**
  * 전역 예외 처리를 담당하는 클래스
- * @RestControllerAdvice 어노테이션을 통해 모든 @RestController에서 발생하는 예외를 처리합니다.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
     /**
      * IllegalArgumentException을 처리하는 핸들러
-     * 서비스 계층에서 발생하는 대부분의 비즈니스 유효성 검사 실패는 이 핸들러에 의해 처리됩니다.
      * @param e 발생한 IllegalArgumentException
      * @return 에러 메시지와 400 Bad Request 상태 코드를 담은 ResponseEntity
      */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, String>> handleIllegalArgumentException(IllegalArgumentException e) {
-        // 클라이언트에게 반환할 에러 메시지를 Map 형태로 구성합니다.
         Map<String, String> errorResponse = Map.of("error", e.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(errorResponse);
+    }
+
+    /**
+     * IllegalStateException을 처리하는 핸들러
+     * 주로 상태가 올바르지 않은 경우(예: 이미 예약된 좌석을 다시 예약)에 발생합니다.
+     * @param e 발생한 IllegalStateException
+     * @return 에러 메시지와 409 Conflict 상태 코드를 담은 ResponseEntity
+     */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Map<String, String>> handleIllegalStateException(IllegalStateException e) {
+        Map<String, String> errorResponse = Map.of("error", e.getMessage());
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(errorResponse);
     }
 }
